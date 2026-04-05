@@ -5,8 +5,7 @@ apt update
 apt install wget libgd-dev unzip -y
 echo "安装完成"
 echo "创建目录"
-mkdir /opt/xiaolan-cdn
-mkdir /opt/xiaolan-cdn/xiaolan-cdn-node
+mkdir -p /opt/xiaolan-cdn/xiaolan-cdn-node
 echo "创建目录完成"
 echo "下载压缩包"
 wget -P /opt/xiaolan-cdn/xiaolan-cdn-node https://github.com/Xiaolan2333/Xiaolan-CDN-Node/releases/latest/download/Xiaolan-CDN-Node.zip
