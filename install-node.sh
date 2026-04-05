@@ -3,6 +3,7 @@ echo "Xiaolan-CDN节点安装脚本"
 echo "安装所需运行库"
 apt update
 apt install wget libgd-dev unzip -y
+wget -P /usr/local/lib/ https://github.com/Xiaolan2333/Xiaolan-CDN-Node/releases/download/Dependency-library/libluajit-5.1.so.2
 echo "安装完成"
 echo "创建目录"
 mkdir -p /opt/xiaolan-cdn/xiaolan-cdn-node
