@@ -42,6 +42,7 @@ local ngx_lua_ffi_socket_tcp_setoption
 local ngx_lua_ffi_socket_getfd
 local ngx_lua_ffi_socket_getsslpointer
 local ngx_lua_ffi_socket_getsslctx
+local ngx_lua_ffi_socket_tcp_settrustedstore
 
 if subsystem == 'http' then
 ffi.cdef[[
@@ -85,6 +86,10 @@ int
 ngx_http_lua_ffi_socket_tcp_get_ssl_ctx(ngx_http_request_t *r,
     ngx_http_lua_socket_tcp_upstream_t *u, void **pctx,
     char **errmsg);
+
+int
+ngx_http_lua_ffi_socket_tcp_settrustedstore(ngx_http_request_t *r,
+    ngx_http_lua_socket_tcp_upstream_t *u, void *store, char **errmsg);
 ]]
 
 ngx_lua_ffi_socket_tcp_getoption = C.ngx_http_lua_ffi_socket_tcp_getoption
@@ -97,6 +102,13 @@ end
 
 if pcall(function() return C.ngx_http_lua_ffi_socket_tcp_get_ssl_ctx end) then
 ngx_lua_ffi_socket_getsslctx = C.ngx_http_lua_ffi_socket_tcp_get_ssl_ctx
+end
+
+if pcall(function()
+    return C.ngx_http_lua_ffi_socket_tcp_settrustedstore
+end) then
+ngx_lua_ffi_socket_tcp_settrustedstore =
+    C.ngx_http_lua_ffi_socket_tcp_settrustedstore
 end
 
 
@@ -124,6 +136,10 @@ int
 ngx_stream_lua_ffi_socket_tcp_get_ssl_ctx(ngx_stream_lua_request_t *r,
     ngx_stream_lua_socket_tcp_upstream_t *u, void **pctx,
     char **errmsg);
+
+int
+ngx_stream_lua_ffi_socket_tcp_settrustedstore(ngx_stream_lua_request_t *r,
+    ngx_stream_lua_socket_tcp_upstream_t *u, void *store, char **errmsg);
 ]]
 
 ngx_lua_ffi_socket_tcp_getoption = C.ngx_stream_lua_ffi_socket_tcp_getoption
@@ -137,6 +153,13 @@ end
 if pcall(function() return C.ngx_stream_lua_ffi_socket_tcp_get_ssl_pointer end)
 then
 ngx_lua_ffi_socket_getsslctx = C.ngx_stream_lua_ffi_socket_tcp_get_ssl_pointer
+end
+
+if pcall(function()
+    return C.ngx_stream_lua_ffi_socket_tcp_settrustedstore
+end) then
+ngx_lua_ffi_socket_tcp_settrustedstore =
+    C.ngx_stream_lua_ffi_socket_tcp_settrustedstore
 end
 end
 
@@ -155,6 +178,7 @@ local SOCKET_CTX_INDEX          = 1
 local SOCKET_CLIENT_CERT_INDEX  = 6
 local SOCKET_CLIENT_PKEY_INDEX  = 7
 local SOCKET_IP_TRANSPARENT_INDEX = 9
+local SOCKET_TRUSTED_STORE_INDEX  = 10
 
 
 local function get_tcp_socket(cosocket)
@@ -292,6 +316,38 @@ local function getsslctx(cosocket)
     return session_ptr[0]
 end
 
+
+local NULL_STORE = ffi_new("void *", nil)
+
+
+local function settrustedstore(cosocket, store)
+    if not ngx_lua_ffi_socket_tcp_settrustedstore then
+        return nil, "tcpsock:settrustedstore is not supported by "
+                    .. "the current nginx module"
+    end
+
+    if store ~= nil and type(store) ~= "cdata" then
+        return nil, "bad store arg: cdata expected, got " .. type(store)
+    end
+
+    local r = get_request()
+    if not r then
+        error("no request found", 2)
+    end
+
+    local u = get_tcp_socket(cosocket)
+
+    local rc = ngx_lua_ffi_socket_tcp_settrustedstore(r, u,
+                                                     store or NULL_STORE,
+                                                     errmsg)
+    if rc ~= FFI_OK then
+        return nil, ffi_str(errmsg[0])
+    end
+
+    cosocket[SOCKET_TRUSTED_STORE_INDEX] = store
+
+    return true
+end
 
 
 if subsystem == 'http' then
@@ -443,6 +499,9 @@ do
     method_table.getoption = getoption
     method_table.setoption = setoption
     method_table.setclientcert = setclientcert
+    if ngx_lua_ffi_socket_tcp_settrustedstore then
+        method_table.settrustedstore = settrustedstore
+    end
     method_table.sslhandshake  = sslhandshake
     method_table.getfd = getfd
     method_table.getoption = getoption
@@ -470,6 +529,9 @@ do
     method_table.getfd = getfd
     method_table.getsslpointer = getsslpointer
     method_table.getsslctx = getsslctx
+    if ngx_lua_ffi_socket_tcp_settrustedstore then
+        method_table.settrustedstore = settrustedstore
+    end
 
     method_table = registry.__tcp_raw_req_cosocket_mt
     method_table.getfd = getfd
